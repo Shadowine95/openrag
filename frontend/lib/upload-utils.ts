@@ -227,8 +227,7 @@ export async function uploadFile(
 
     const shouldCreateFilter = (uploadIngestJson as { create_filter?: boolean })
       .create_filter;
-    const filename = (uploadIngestJson as { filename?: string })
-      .filename;
+    const filename = (uploadIngestJson as { filename?: string }).filename;
 
     const result: UploadFileResult = {
       fileId,
