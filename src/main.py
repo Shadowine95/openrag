@@ -42,7 +42,14 @@ from api import (
 from api.connector_router import ConnectorRouter
 from services.api_key_service import APIKeyService
 from api import keys as api_keys
-from api.v1 import chat as v1_chat, search as v1_search, documents as v1_documents, settings as v1_settings, models as v1_models, knowledge_filters as v1_knowledge_filters
+from api.v1 import (
+    chat as v1_chat,
+    search as v1_search,
+    documents as v1_documents,
+    settings as v1_settings,
+    models as v1_models,
+    knowledge_filters as v1_knowledge_filters,
+)
 
 # Configuration and setup
 from config.settings import (
@@ -87,14 +94,23 @@ logger = get_logger(__name__)
 # Files to exclude from startup ingestion
 EXCLUDED_INGESTION_FILES = {"warmup_ocr.pdf"}
 
+
 async def wait_for_opensearch():
     """Wait for OpenSearch to be ready, delegating to the shared utility."""
-    from utils.opensearch_utils import wait_for_opensearch as _wait_for_opensearch, OpenSearchNotReadyError
+    from utils.opensearch_utils import (
+        wait_for_opensearch as _wait_for_opensearch,
+        OpenSearchNotReadyError,
+    )
+
     try:
         await _wait_for_opensearch(clients.opensearch)
-        await TelemetryClient.send_event(Category.OPENSEARCH_SETUP, MessageId.ORB_OS_CONN_ESTABLISHED)
+        await TelemetryClient.send_event(
+            Category.OPENSEARCH_SETUP, MessageId.ORB_OS_CONN_ESTABLISHED
+        )
     except OpenSearchNotReadyError:
-        await TelemetryClient.send_event(Category.OPENSEARCH_SETUP, MessageId.ORB_OS_TIMEOUT)
+        await TelemetryClient.send_event(
+            Category.OPENSEARCH_SETUP, MessageId.ORB_OS_TIMEOUT
+        )
         raise
 
 
@@ -139,7 +155,9 @@ async def _ensure_opensearch_index():
                 "dimension"
             ],
         )
-        await TelemetryClient.send_event(Category.OPENSEARCH_INDEX, MessageId.ORB_OS_INDEX_CREATED)
+        await TelemetryClient.send_event(
+            Category.OPENSEARCH_INDEX, MessageId.ORB_OS_INDEX_CREATED
+        )
 
     except Exception as e:
         logger.error(
@@ -147,7 +165,9 @@ async def _ensure_opensearch_index():
             error=str(e),
             index_name=get_index_name(),
         )
-        await TelemetryClient.send_event(Category.OPENSEARCH_INDEX, MessageId.ORB_OS_INDEX_CREATE_FAIL)
+        await TelemetryClient.send_event(
+            Category.OPENSEARCH_INDEX, MessageId.ORB_OS_INDEX_CREATE_FAIL
+        )
         # Don't raise the exception to avoid breaking the initialization
         # The service can still function, document operations might fail later
 
@@ -168,7 +188,7 @@ async def init_index():
         dynamic_index_body = await create_dynamic_index_body(
             embedding_model,
             provider=embedding_provider,
-            endpoint=getattr(embedding_provider_config, "endpoint", None)
+            endpoint=getattr(embedding_provider_config, "endpoint", None),
         )
 
         # Create documents index
@@ -182,14 +202,18 @@ async def init_index():
                 index_name=index_name,
                 embedding_model=embedding_model,
             )
-            await TelemetryClient.send_event(Category.OPENSEARCH_INDEX, MessageId.ORB_OS_INDEX_CREATED)
+            await TelemetryClient.send_event(
+                Category.OPENSEARCH_INDEX, MessageId.ORB_OS_INDEX_CREATED
+            )
         else:
             logger.info(
                 "Index already exists, skipping creation",
                 index_name=index_name,
                 embedding_model=embedding_model,
             )
-            await TelemetryClient.send_event(Category.OPENSEARCH_INDEX, MessageId.ORB_OS_INDEX_EXISTS)
+            await TelemetryClient.send_event(
+                Category.OPENSEARCH_INDEX, MessageId.ORB_OS_INDEX_EXISTS
+            )
 
         # Create knowledge filters index
         knowledge_filter_index_name = "knowledge_filters"
@@ -210,14 +234,19 @@ async def init_index():
             }
         }
 
-        if not await clients.opensearch.indices.exists(index=knowledge_filter_index_name):
+        if not await clients.opensearch.indices.exists(
+            index=knowledge_filter_index_name
+        ):
             await clients.opensearch.indices.create(
                 index=knowledge_filter_index_name, body=knowledge_filter_index_body
             )
             logger.info(
-                "Created knowledge filters index", index_name=knowledge_filter_index_name
+                "Created knowledge filters index",
+                index_name=knowledge_filter_index_name,
             )
-            await TelemetryClient.send_event(Category.OPENSEARCH_INDEX, MessageId.ORB_OS_KF_INDEX_CREATED)
+            await TelemetryClient.send_event(
+                Category.OPENSEARCH_INDEX, MessageId.ORB_OS_KF_INDEX_CREATED
+            )
         else:
             logger.info(
                 "Knowledge filters index already exists, skipping creation",
@@ -229,9 +258,7 @@ async def init_index():
             await clients.opensearch.indices.create(
                 index=API_KEYS_INDEX_NAME, body=API_KEYS_INDEX_BODY
             )
-            logger.info(
-                "Created API keys index", index_name=API_KEYS_INDEX_NAME
-            )
+            logger.info("Created API keys index", index_name=API_KEYS_INDEX_NAME)
         else:
             logger.info(
                 "API keys index already exists, skipping creation",
@@ -244,11 +271,13 @@ async def init_index():
     except Exception as e:
         error_msg = str(e).lower()
         if "disk usage exceeded" in error_msg or "flood-stage watermark" in error_msg:
-             logger.error("OpenSearch disk usage exceeded flood-stage watermark. Index creation failed.")
-             raise Exception(
-                 "OpenSearch disk space is full (flood-stage watermark exceeded). "
-                 "Please free up disk space on your Docker volume or host machine to continue."
-             ) from e
+            logger.error(
+                "OpenSearch disk usage exceeded flood-stage watermark. Index creation failed."
+            )
+            raise Exception(
+                "OpenSearch disk space is full (flood-stage watermark exceeded). "
+                "Please free up disk space on your Docker volume or host machine to continue."
+            ) from e
         raise e
 
 
@@ -301,7 +330,9 @@ def generate_jwt_keys():
             logger.info("Generated RSA keys for JWT signing")
         except subprocess.CalledProcessError as e:
             logger.error("Failed to generate RSA keys", error=str(e))
-            TelemetryClient.send_event_sync(Category.SERVICE_INITIALIZATION, MessageId.ORB_SVC_JWT_KEY_FAIL)
+            TelemetryClient.send_event_sync(
+                Category.SERVICE_INITIALIZATION, MessageId.ORB_SVC_JWT_KEY_FAIL
+            )
             raise
     else:
         # Ensure correct permissions on existing keys
@@ -348,7 +379,9 @@ async def ingest_default_documents_when_ready(
             disable_langflow_ingest=DISABLE_INGEST_WITH_LANGFLOW,
             ingest_source=DEFAULT_DOCS_INGEST_SOURCE,
         )
-        await TelemetryClient.send_event(Category.DOCUMENT_INGESTION, MessageId.ORB_DOC_DEFAULT_START)
+        await TelemetryClient.send_event(
+            Category.DOCUMENT_INGESTION, MessageId.ORB_DOC_DEFAULT_START
+        )
         use_url_ingest = _should_use_url_default_docs_ingest()
         if (
             DEFAULT_DOCS_INGEST_SOURCE == "url"
@@ -365,12 +398,16 @@ async def ingest_default_documents_when_ready(
                 docs_url=DEFAULT_DOCS_URL,
                 crawl_depth=DEFAULT_DOCS_CRAWL_DEPTH,
             )
-            await TelemetryClient.send_event(Category.DOCUMENT_INGESTION, MessageId.ORB_DOC_DEFAULT_COMPLETE)
+            await TelemetryClient.send_event(
+                Category.DOCUMENT_INGESTION, MessageId.ORB_DOC_DEFAULT_COMPLETE
+            )
             return
 
         base_dir = _get_documents_dir()
         if not os.path.isdir(base_dir):
-            raise FileNotFoundError(f"Default documents directory not found: {base_dir}")
+            raise FileNotFoundError(
+                f"Default documents directory not found: {base_dir}"
+            )
 
         # Collect files recursively, excluding warmup files
         file_paths = [
@@ -392,11 +429,15 @@ async def ingest_default_documents_when_ready(
                 langflow_file_service, session_manager, task_service, file_paths
             )
 
-        await TelemetryClient.send_event(Category.DOCUMENT_INGESTION, MessageId.ORB_DOC_DEFAULT_COMPLETE)
+        await TelemetryClient.send_event(
+            Category.DOCUMENT_INGESTION, MessageId.ORB_DOC_DEFAULT_COMPLETE
+        )
 
     except Exception as e:
         logger.error("Default documents ingestion failed", error=str(e))
-        await TelemetryClient.send_event(Category.DOCUMENT_INGESTION, MessageId.ORB_DOC_DEFAULT_FAILED)
+        await TelemetryClient.send_event(
+            Category.DOCUMENT_INGESTION, MessageId.ORB_DOC_DEFAULT_FAILED
+        )
         raise
 
 
@@ -465,7 +506,9 @@ async def _ingest_default_documents_langflow(
     )
 
 
-async def _ingest_default_documents_url(session_manager, docs_url: str, crawl_depth: int):
+async def _ingest_default_documents_url(
+    session_manager, docs_url: str, crawl_depth: int
+):
     """Ingest default docs by crawling a URL with the Langflow URL ingest flow."""
     if not LANGFLOW_URL_INGEST_FLOW_ID:
         raise ValueError("LANGFLOW_URL_INGEST_FLOW_ID is not configured")
@@ -479,7 +522,9 @@ async def _ingest_default_documents_url(session_manager, docs_url: str, crawl_de
     anonymous_user = AnonymousUser()
     effective_jwt = None
     if session_manager:
-        session_manager.get_user_opensearch_client(anonymous_user.user_id, effective_jwt)
+        session_manager.get_user_opensearch_client(
+            anonymous_user.user_id, effective_jwt
+        )
         if hasattr(session_manager, "_anonymous_jwt"):
             effective_jwt = session_manager._anonymous_jwt
 
@@ -502,7 +547,9 @@ async def _ingest_default_documents_url(session_manager, docs_url: str, crawl_de
         "X-Langflow-Global-Var-OWNER_NAME": str(anonymous_user.name),
         "X-Langflow-Global-Var-OWNER_EMAIL": str(anonymous_user.email),
         "X-Langflow-Global-Var-CONNECTOR_TYPE": "system_default",
-        "X-Langflow-Global-Var-SELECTED_EMBEDDING_MODEL": str(config.knowledge.embedding_model),
+        "X-Langflow-Global-Var-SELECTED_EMBEDDING_MODEL": str(
+            config.knowledge.embedding_model
+        ),
     }
     add_provider_credentials_to_headers(headers, config)
 
@@ -539,7 +586,9 @@ async def _delete_existing_default_docs(session_manager):
     anonymous_user = AnonymousUser()
     effective_jwt = None
     if session_manager:
-        session_manager.get_user_opensearch_client(anonymous_user.user_id, effective_jwt)
+        session_manager.get_user_opensearch_client(
+            anonymous_user.user_id, effective_jwt
+        )
         if hasattr(session_manager, "_anonymous_jwt"):
             effective_jwt = session_manager._anonymous_jwt
 
@@ -605,8 +654,8 @@ async def _reingest_default_docs_on_upgrade_if_needed(
     if _should_use_url_default_docs_ingest():
         # Refresh signature metadata after upgrade reingestion so startup
         # signature checks don't trigger an immediate duplicate ingest.
-        config.onboarding.openrag_docs_remote_signature = await _get_remote_docs_signature(
-            DEFAULT_DOCS_URL
+        config.onboarding.openrag_docs_remote_signature = (
+            await _get_remote_docs_signature(DEFAULT_DOCS_URL)
         )
     else:
         config.onboarding.openrag_docs_remote_signature = None
@@ -637,8 +686,13 @@ async def _get_remote_docs_signature(docs_url: str):
 
             etag = (head_response.headers.get("etag") or "").strip()
             last_modified = (head_response.headers.get("last-modified") or "").strip()
-            if etag or last_modified:
-                return f"etag={etag}|last_modified={last_modified}"
+            if etag:
+                # Prefer ETag when available: it is typically the strongest
+                # cache validator and stays stable if extra cache headers
+                # appear/disappear without content changes.
+                return f"etag={etag}"
+            if last_modified:
+                return f"last_modified={last_modified}"
 
             # HEAD has no body. If cache headers are missing, fetch the page body.
             get_response = await client.get(docs_url)
@@ -721,7 +775,9 @@ async def refresh_default_openrag_docs(
             return False
 
         previous_signature = config.onboarding.openrag_docs_remote_signature
-        should_refresh = force or (signature is not None and signature != previous_signature)
+        should_refresh = force or (
+            signature is not None and signature != previous_signature
+        )
         if not should_refresh:
             logger.info(
                 "OpenRAG docs refresh skipped: remote signature unchanged",
@@ -781,6 +837,7 @@ async def refresh_default_openrag_docs(
         )
         raise
 
+
 async def health_check(request: Request):
     """Simple liveness probe: Indicates that the OpenRAG Backend service is online and running."""
     return JSONResponse({"status": "ok"}, status_code=200)
@@ -805,9 +862,8 @@ async def opensearch_health_ready(request):
             status_code=503,
         )
 
-async def _ingest_default_documents_openrag(
-    document_service, task_service, file_paths
-):
+
+async def _ingest_default_documents_openrag(document_service, task_service, file_paths):
     """Ingest default documents using traditional OpenRAG processor."""
     logger.info(
         "Using traditional OpenRAG ingestion for default documents",
@@ -826,9 +882,7 @@ async def _ingest_default_documents_openrag(
         is_sample_data=True,  # Mark as sample data
     )
 
-    task_id = await task_service.create_custom_task(
-        "anonymous", file_paths, processor
-    )
+    task_id = await task_service.create_custom_task("anonymous", file_paths, processor)
     logger.info(
         "Started traditional OpenRAG ingestion task",
         task_id=task_id,
@@ -869,26 +923,41 @@ async def _update_mcp_servers_with_provider_credentials(services):
             # Add anonymous user details
             anonymous_user = AnonymousUser()
             global_vars["OWNER"] = anonymous_user.user_id  # "anonymous"
-            global_vars["OWNER_NAME"] = f'"{anonymous_user.name}"'  # "Anonymous User" (quoted for spaces)
+            global_vars["OWNER_NAME"] = (
+                f'"{anonymous_user.name}"'  # "Anonymous User" (quoted for spaces)
+            )
             global_vars["OWNER_EMAIL"] = anonymous_user.email  # "anonymous@localhost"
 
-            logger.info("Added anonymous JWT and user details to MCP servers for no-auth mode")
+            logger.info(
+                "Added anonymous JWT and user details to MCP servers for no-auth mode"
+            )
 
         if global_vars:
-            result = await auth_service.langflow_mcp_service.update_mcp_servers_with_global_vars(global_vars)
-            logger.info("Updated MCP servers with provider credentials at startup", **result)
+            result = await auth_service.langflow_mcp_service.update_mcp_servers_with_global_vars(
+                global_vars
+            )
+            logger.info(
+                "Updated MCP servers with provider credentials at startup", **result
+            )
         else:
-            logger.debug("No provider credentials configured, skipping MCP server update")
+            logger.debug(
+                "No provider credentials configured, skipping MCP server update"
+            )
 
     except Exception as e:
-        logger.warning("Failed to update MCP servers with provider credentials at startup", error=str(e))
+        logger.warning(
+            "Failed to update MCP servers with provider credentials at startup",
+            error=str(e),
+        )
         # Don't fail startup if MCP update fails
 
 
 async def startup_tasks(services):
     """Startup tasks"""
     logger.info("Starting startup tasks")
-    await TelemetryClient.send_event(Category.APPLICATION_STARTUP, MessageId.ORB_APP_START_INIT)
+    await TelemetryClient.send_event(
+        Category.APPLICATION_STARTUP, MessageId.ORB_APP_START_INIT
+    )
     # Only initialize basic OpenSearch connection, not the index
     # Index will be created after onboarding when we know the embedding model
     await wait_for_opensearch()
@@ -966,24 +1035,37 @@ async def startup_tasks(services):
                 logger.info(
                     f"Detected reset flows: {', '.join(reset_flows)}. Reapplying all settings."
                 )
-                await TelemetryClient.send_event(Category.FLOW_OPERATIONS, MessageId.ORB_FLOW_RESET_DETECTED)
+                await TelemetryClient.send_event(
+                    Category.FLOW_OPERATIONS, MessageId.ORB_FLOW_RESET_DETECTED
+                )
                 from api.settings import reapply_all_settings
+
                 await reapply_all_settings(session_manager=services["session_manager"])
-                logger.info("Successfully reapplied settings after detecting flow resets")
-                await TelemetryClient.send_event(Category.FLOW_OPERATIONS, MessageId.ORB_FLOW_SETTINGS_REAPPLIED)
+                logger.info(
+                    "Successfully reapplied settings after detecting flow resets"
+                )
+                await TelemetryClient.send_event(
+                    Category.FLOW_OPERATIONS, MessageId.ORB_FLOW_SETTINGS_REAPPLIED
+                )
             else:
-                logger.info("No flows detected as reset, skipping settings reapplication")
+                logger.info(
+                    "No flows detected as reset, skipping settings reapplication"
+                )
         else:
             logger.debug("Configuration not yet edited, skipping flow reset check")
     except Exception as e:
         logger.error(f"Failed to check flows reset or reapply settings: {str(e)}")
-        await TelemetryClient.send_event(Category.FLOW_OPERATIONS, MessageId.ORB_FLOW_RESET_CHECK_FAIL)
+        await TelemetryClient.send_event(
+            Category.FLOW_OPERATIONS, MessageId.ORB_FLOW_RESET_CHECK_FAIL
+        )
         # Don't fail startup if this check fails
 
 
 async def initialize_services():
     """Initialize all services and their dependencies"""
-    await TelemetryClient.send_event(Category.SERVICE_INITIALIZATION, MessageId.ORB_SVC_INIT_START)
+    await TelemetryClient.send_event(
+        Category.SERVICE_INITIALIZATION, MessageId.ORB_SVC_INIT_START
+    )
     # Generate JWT keys if they don't exist
     generate_jwt_keys()
 
@@ -992,7 +1074,9 @@ async def initialize_services():
         await clients.initialize()
     except Exception as e:
         logger.error("Failed to initialize clients", error=str(e))
-        await TelemetryClient.send_event(Category.SERVICE_INITIALIZATION, MessageId.ORB_SVC_OS_CLIENT_FAIL)
+        await TelemetryClient.send_event(
+            Category.SERVICE_INITIALIZATION, MessageId.ORB_SVC_OS_CLIENT_FAIL
+        )
         raise
 
     # Initialize session manager
@@ -1050,11 +1134,15 @@ async def initialize_services():
             logger.warning(
                 "Failed to load persisted connections on startup", error=str(e)
             )
-            await TelemetryClient.send_event(Category.CONNECTOR_OPERATIONS, MessageId.ORB_CONN_LOAD_FAILED)
+            await TelemetryClient.send_event(
+                Category.CONNECTOR_OPERATIONS, MessageId.ORB_CONN_LOAD_FAILED
+            )
     else:
         logger.info("[CONNECTORS] Skipping connection loading in no-auth mode")
 
-    await TelemetryClient.send_event(Category.SERVICE_INITIALIZATION, MessageId.ORB_SVC_INIT_SUCCESS)
+    await TelemetryClient.send_event(
+        Category.SERVICE_INITIALIZATION, MessageId.ORB_SVC_INIT_SUCCESS
+    )
 
     langflow_file_service = LangflowFileService()
 
@@ -1089,152 +1177,449 @@ async def create_app():
     # Register route handlers — auth and service injection done via FastAPI Depends() in each handler
 
     # Langflow Files endpoints
-    app.add_api_route("/langflow/files/upload", langflow_files.upload_user_file, methods=["POST"], tags=["internal"])
-    app.add_api_route("/langflow/ingest", langflow_files.run_ingestion, methods=["POST"], tags=["internal"])
-    app.add_api_route("/langflow/files", langflow_files.delete_user_files, methods=["DELETE"], tags=["internal"])
-    app.add_api_route("/langflow/upload_ingest", langflow_files.upload_and_ingest_user_file, methods=["POST"], tags=["internal"])
+    app.add_api_route(
+        "/langflow/files/upload",
+        langflow_files.upload_user_file,
+        methods=["POST"],
+        tags=["internal"],
+    )
+    app.add_api_route(
+        "/langflow/ingest",
+        langflow_files.run_ingestion,
+        methods=["POST"],
+        tags=["internal"],
+    )
+    app.add_api_route(
+        "/langflow/files",
+        langflow_files.delete_user_files,
+        methods=["DELETE"],
+        tags=["internal"],
+    )
+    app.add_api_route(
+        "/langflow/upload_ingest",
+        langflow_files.upload_and_ingest_user_file,
+        methods=["POST"],
+        tags=["internal"],
+    )
 
     # Upload endpoints
-    app.add_api_route("/upload_context", upload.upload_context, methods=["POST"], tags=["internal"])
-    app.add_api_route("/upload_path", upload.upload_path, methods=["POST"], tags=["internal"])
-    app.add_api_route("/upload_options", upload.upload_options, methods=["GET"], tags=["internal"])
-    app.add_api_route("/upload_bucket", upload.upload_bucket, methods=["POST"], tags=["internal"])
+    app.add_api_route(
+        "/upload_context", upload.upload_context, methods=["POST"], tags=["internal"]
+    )
+    app.add_api_route(
+        "/upload_path", upload.upload_path, methods=["POST"], tags=["internal"]
+    )
+    app.add_api_route(
+        "/upload_options", upload.upload_options, methods=["GET"], tags=["internal"]
+    )
+    app.add_api_route(
+        "/upload_bucket", upload.upload_bucket, methods=["POST"], tags=["internal"]
+    )
 
     # Task endpoints
-    app.add_api_route("/tasks/{task_id}", tasks.task_status, methods=["GET"], tags=["internal"])
+    app.add_api_route(
+        "/tasks/{task_id}", tasks.task_status, methods=["GET"], tags=["internal"]
+    )
     app.add_api_route("/tasks", tasks.all_tasks, methods=["GET"], tags=["internal"])
-    app.add_api_route("/tasks/{task_id}/cancel", tasks.cancel_task, methods=["POST"], tags=["internal"])
+    app.add_api_route(
+        "/tasks/{task_id}/cancel",
+        tasks.cancel_task,
+        methods=["POST"],
+        tags=["internal"],
+    )
 
     # Search endpoint
     app.add_api_route("/search", search.search, methods=["POST"], tags=["internal"])
 
     # Knowledge Filter endpoints
-    app.add_api_route("/knowledge-filter", knowledge_filter.create_knowledge_filter, methods=["POST"], tags=["internal"])
-    app.add_api_route("/knowledge-filter/search", knowledge_filter.search_knowledge_filters, methods=["POST"], tags=["internal"])
-    app.add_api_route("/knowledge-filter/{filter_id}", knowledge_filter.get_knowledge_filter, methods=["GET"], tags=["internal"])
-    app.add_api_route("/knowledge-filter/{filter_id}", knowledge_filter.update_knowledge_filter, methods=["PUT"], tags=["internal"])
-    app.add_api_route("/knowledge-filter/{filter_id}", knowledge_filter.delete_knowledge_filter, methods=["DELETE"], tags=["internal"])
+    app.add_api_route(
+        "/knowledge-filter",
+        knowledge_filter.create_knowledge_filter,
+        methods=["POST"],
+        tags=["internal"],
+    )
+    app.add_api_route(
+        "/knowledge-filter/search",
+        knowledge_filter.search_knowledge_filters,
+        methods=["POST"],
+        tags=["internal"],
+    )
+    app.add_api_route(
+        "/knowledge-filter/{filter_id}",
+        knowledge_filter.get_knowledge_filter,
+        methods=["GET"],
+        tags=["internal"],
+    )
+    app.add_api_route(
+        "/knowledge-filter/{filter_id}",
+        knowledge_filter.update_knowledge_filter,
+        methods=["PUT"],
+        tags=["internal"],
+    )
+    app.add_api_route(
+        "/knowledge-filter/{filter_id}",
+        knowledge_filter.delete_knowledge_filter,
+        methods=["DELETE"],
+        tags=["internal"],
+    )
 
     # Knowledge Filter Subscription endpoints
-    app.add_api_route("/knowledge-filter/{filter_id}/subscribe", knowledge_filter.subscribe_to_knowledge_filter, methods=["POST"], tags=["internal"])
-    app.add_api_route("/knowledge-filter/{filter_id}/subscriptions", knowledge_filter.list_knowledge_filter_subscriptions, methods=["GET"], tags=["internal"])
-    app.add_api_route("/knowledge-filter/{filter_id}/subscribe/{subscription_id}", knowledge_filter.cancel_knowledge_filter_subscription, methods=["DELETE"], tags=["internal"])
+    app.add_api_route(
+        "/knowledge-filter/{filter_id}/subscribe",
+        knowledge_filter.subscribe_to_knowledge_filter,
+        methods=["POST"],
+        tags=["internal"],
+    )
+    app.add_api_route(
+        "/knowledge-filter/{filter_id}/subscriptions",
+        knowledge_filter.list_knowledge_filter_subscriptions,
+        methods=["GET"],
+        tags=["internal"],
+    )
+    app.add_api_route(
+        "/knowledge-filter/{filter_id}/subscribe/{subscription_id}",
+        knowledge_filter.cancel_knowledge_filter_subscription,
+        methods=["DELETE"],
+        tags=["internal"],
+    )
 
     # Knowledge Filter Webhook endpoint (no auth required - called by OpenSearch)
-    app.add_api_route("/knowledge-filter/{filter_id}/webhook/{subscription_id}", knowledge_filter.knowledge_filter_webhook, methods=["POST"], tags=["internal"])
+    app.add_api_route(
+        "/knowledge-filter/{filter_id}/webhook/{subscription_id}",
+        knowledge_filter.knowledge_filter_webhook,
+        methods=["POST"],
+        tags=["internal"],
+    )
 
     # Chat endpoints
     app.add_api_route("/chat", chat.chat_endpoint, methods=["POST"], tags=["internal"])
-    app.add_api_route("/langflow", chat.langflow_endpoint, methods=["POST"], tags=["internal"])
+    app.add_api_route(
+        "/langflow", chat.langflow_endpoint, methods=["POST"], tags=["internal"]
+    )
 
     # Chat history endpoints
-    app.add_api_route("/chat/history", chat.chat_history_endpoint, methods=["GET"], tags=["internal"])
-    app.add_api_route("/langflow/history", chat.langflow_history_endpoint, methods=["GET"], tags=["internal"])
+    app.add_api_route(
+        "/chat/history", chat.chat_history_endpoint, methods=["GET"], tags=["internal"]
+    )
+    app.add_api_route(
+        "/langflow/history",
+        chat.langflow_history_endpoint,
+        methods=["GET"],
+        tags=["internal"],
+    )
 
     # Session deletion endpoint
-    app.add_api_route("/sessions/{session_id}", chat.delete_session_endpoint, methods=["DELETE"], tags=["internal"])
+    app.add_api_route(
+        "/sessions/{session_id}",
+        chat.delete_session_endpoint,
+        methods=["DELETE"],
+        tags=["internal"],
+    )
 
     # Authentication endpoints
     app.add_api_route("/auth/init", auth.auth_init, methods=["POST"], tags=["internal"])
-    app.add_api_route("/auth/callback", auth.auth_callback, methods=["POST"], tags=["internal"])
+    app.add_api_route(
+        "/auth/callback", auth.auth_callback, methods=["POST"], tags=["internal"]
+    )
     app.add_api_route("/auth/me", auth.auth_me, methods=["GET"], tags=["internal"])
-    app.add_api_route("/auth/logout", auth.auth_logout, methods=["POST"], tags=["internal"])
+    app.add_api_route(
+        "/auth/logout", auth.auth_logout, methods=["POST"], tags=["internal"]
+    )
 
     # Connector endpoints
-    app.add_api_route("/connectors", connectors.list_connectors, methods=["GET"], tags=["internal"])
-    app.add_api_route("/connectors/{connector_type}/sync", connectors.connector_sync, methods=["POST"], tags=["internal"])
-    app.add_api_route("/connectors/sync-all", connectors.sync_all_connectors, methods=["POST"], tags=["internal"])
-    app.add_api_route("/connectors/{connector_type}/status", connectors.connector_status, methods=["GET"], tags=["internal"])
-    app.add_api_route("/connectors/{connector_type}/token", connectors.connector_token, methods=["GET"], tags=["internal"])
-    app.add_api_route("/connectors/{connector_type}/disconnect", connectors.connector_disconnect, methods=["DELETE"], tags=["internal"])
-    app.add_api_route("/connectors/{connector_type}/webhook", connectors.connector_webhook, methods=["POST", "GET"], tags=["internal"])
+    app.add_api_route(
+        "/connectors", connectors.list_connectors, methods=["GET"], tags=["internal"]
+    )
+    app.add_api_route(
+        "/connectors/{connector_type}/sync",
+        connectors.connector_sync,
+        methods=["POST"],
+        tags=["internal"],
+    )
+    app.add_api_route(
+        "/connectors/sync-all",
+        connectors.sync_all_connectors,
+        methods=["POST"],
+        tags=["internal"],
+    )
+    app.add_api_route(
+        "/connectors/{connector_type}/status",
+        connectors.connector_status,
+        methods=["GET"],
+        tags=["internal"],
+    )
+    app.add_api_route(
+        "/connectors/{connector_type}/token",
+        connectors.connector_token,
+        methods=["GET"],
+        tags=["internal"],
+    )
+    app.add_api_route(
+        "/connectors/{connector_type}/disconnect",
+        connectors.connector_disconnect,
+        methods=["DELETE"],
+        tags=["internal"],
+    )
+    app.add_api_route(
+        "/connectors/{connector_type}/webhook",
+        connectors.connector_webhook,
+        methods=["POST", "GET"],
+        tags=["internal"],
+    )
 
     # Document endpoints
-    app.add_api_route("/documents/check-filename", documents.check_filename_exists, methods=["GET"], tags=["internal"])
-    app.add_api_route("/documents/delete-by-filename", documents.delete_documents_by_filename, methods=["POST"], tags=["internal"])
+    app.add_api_route(
+        "/documents/check-filename",
+        documents.check_filename_exists,
+        methods=["GET"],
+        tags=["internal"],
+    )
+    app.add_api_route(
+        "/documents/delete-by-filename",
+        documents.delete_documents_by_filename,
+        methods=["POST"],
+        tags=["internal"],
+    )
 
     # OIDC endpoints
-    app.add_api_route("/.well-known/openid-configuration", oidc.oidc_discovery, methods=["GET"], tags=["internal"])
-    app.add_api_route("/auth/jwks", oidc.jwks_endpoint, methods=["GET"], tags=["internal"])
-    app.add_api_route("/auth/introspect", oidc.token_introspection, methods=["POST"], tags=["internal"])
+    app.add_api_route(
+        "/.well-known/openid-configuration",
+        oidc.oidc_discovery,
+        methods=["GET"],
+        tags=["internal"],
+    )
+    app.add_api_route(
+        "/auth/jwks", oidc.jwks_endpoint, methods=["GET"], tags=["internal"]
+    )
+    app.add_api_route(
+        "/auth/introspect",
+        oidc.token_introspection,
+        methods=["POST"],
+        tags=["internal"],
+    )
 
     # Settings endpoints
-    app.add_api_route("/settings", settings.get_settings, methods=["GET"], tags=["internal"])
-    app.add_api_route("/settings", settings.update_settings, methods=["POST"], tags=["internal"])
-    app.add_api_route("/onboarding/state", settings.update_onboarding_state, methods=["POST"], tags=["internal"])
-    app.add_api_route("/openrag-docs/refresh", settings.refresh_openrag_docs, methods=["POST"], tags=["internal"])
+    app.add_api_route(
+        "/settings", settings.get_settings, methods=["GET"], tags=["internal"]
+    )
+    app.add_api_route(
+        "/settings", settings.update_settings, methods=["POST"], tags=["internal"]
+    )
+    app.add_api_route(
+        "/onboarding/state",
+        settings.update_onboarding_state,
+        methods=["POST"],
+        tags=["internal"],
+    )
+    app.add_api_route(
+        "/openrag-docs/refresh",
+        settings.refresh_openrag_docs,
+        methods=["POST"],
+        tags=["internal"],
+    )
 
     # Provider health check endpoint
-    app.add_api_route("/provider/health", provider_health.check_provider_health, methods=["GET"], tags=["internal"])
+    app.add_api_route(
+        "/provider/health",
+        provider_health.check_provider_health,
+        methods=["GET"],
+        tags=["internal"],
+    )
 
     # Health check endpoints
     app.add_api_route("/health", health_check, methods=["GET"], tags=["internal"])
-    app.add_api_route("/search/health", opensearch_health_ready, methods=["GET"], tags=["internal"])
+    app.add_api_route(
+        "/search/health", opensearch_health_ready, methods=["GET"], tags=["internal"]
+    )
 
     # Models endpoints
-    app.add_api_route("/models/openai", models.get_openai_models, methods=["POST"], tags=["internal"])
-    app.add_api_route("/models/anthropic", models.get_anthropic_models, methods=["POST"], tags=["internal"])
-    app.add_api_route("/models/ollama", models.get_ollama_models, methods=["GET"], tags=["internal"])
-    app.add_api_route("/models/ibm", models.get_ibm_models, methods=["POST"], tags=["internal"])
+    app.add_api_route(
+        "/models/openai", models.get_openai_models, methods=["POST"], tags=["internal"]
+    )
+    app.add_api_route(
+        "/models/anthropic",
+        models.get_anthropic_models,
+        methods=["POST"],
+        tags=["internal"],
+    )
+    app.add_api_route(
+        "/models/ollama", models.get_ollama_models, methods=["GET"], tags=["internal"]
+    )
+    app.add_api_route(
+        "/models/ibm", models.get_ibm_models, methods=["POST"], tags=["internal"]
+    )
 
     # Onboarding endpoints
-    app.add_api_route("/onboarding", settings.onboarding, methods=["POST"], tags=["internal"])
-    app.add_api_route("/onboarding/rollback", settings.rollback_onboarding, methods=["POST"], tags=["internal"])
+    app.add_api_route(
+        "/onboarding", settings.onboarding, methods=["POST"], tags=["internal"]
+    )
+    app.add_api_route(
+        "/onboarding/rollback",
+        settings.rollback_onboarding,
+        methods=["POST"],
+        tags=["internal"],
+    )
 
     # Docling preset update endpoint
-    app.add_api_route("/settings/docling-preset", settings.update_docling_preset, methods=["PATCH"], tags=["internal"])
+    app.add_api_route(
+        "/settings/docling-preset",
+        settings.update_docling_preset,
+        methods=["PATCH"],
+        tags=["internal"],
+    )
 
     # Nudges endpoints
-    app.add_api_route("/nudges", nudges.nudges_from_kb_endpoint, methods=["POST"], tags=["internal"])
-    app.add_api_route("/nudges/{chat_id}", nudges.nudges_from_chat_id_endpoint, methods=["POST"], tags=["internal"])
+    app.add_api_route(
+        "/nudges", nudges.nudges_from_kb_endpoint, methods=["POST"], tags=["internal"]
+    )
+    app.add_api_route(
+        "/nudges/{chat_id}",
+        nudges.nudges_from_chat_id_endpoint,
+        methods=["POST"],
+        tags=["internal"],
+    )
 
     # Flow reset endpoint
-    app.add_api_route("/reset-flow/{flow_type}", flows.reset_flow_endpoint, methods=["POST"], tags=["internal"])
+    app.add_api_route(
+        "/reset-flow/{flow_type}",
+        flows.reset_flow_endpoint,
+        methods=["POST"],
+        tags=["internal"],
+    )
 
     # Router upload ingest endpoint
-    app.add_api_route("/router/upload_ingest", router.upload_ingest_router, methods=["POST"], tags=["internal"])
+    app.add_api_route(
+        "/router/upload_ingest",
+        router.upload_ingest_router,
+        methods=["POST"],
+        tags=["internal"],
+    )
 
     # Docling service proxy
-    app.add_api_route("/docling/health", docling.health, methods=["GET"], tags=["internal"])
+    app.add_api_route(
+        "/docling/health", docling.health, methods=["GET"], tags=["internal"]
+    )
 
     # ===== API Key Management Endpoints (JWT auth for UI) =====
-    app.add_api_route("/keys", api_keys.list_keys_endpoint, methods=["GET"], tags=["internal"])
-    app.add_api_route("/keys", api_keys.create_key_endpoint, methods=["POST"], tags=["internal"])
-    app.add_api_route("/keys/{key_id}", api_keys.revoke_key_endpoint, methods=["DELETE"], tags=["internal"])
+    app.add_api_route(
+        "/keys", api_keys.list_keys_endpoint, methods=["GET"], tags=["internal"]
+    )
+    app.add_api_route(
+        "/keys", api_keys.create_key_endpoint, methods=["POST"], tags=["internal"]
+    )
+    app.add_api_route(
+        "/keys/{key_id}",
+        api_keys.revoke_key_endpoint,
+        methods=["DELETE"],
+        tags=["internal"],
+    )
 
     # ===== Public API v1 Endpoints (API Key auth) =====
     # Chat endpoints
-    app.add_api_route("/v1/chat", v1_chat.chat_create_endpoint, methods=["POST"], tags=["public"])
-    app.add_api_route("/v1/chat", v1_chat.chat_list_endpoint, methods=["GET"], tags=["public"])
-    app.add_api_route("/v1/chat/{chat_id}", v1_chat.chat_get_endpoint, methods=["GET"], tags=["public"])
-    app.add_api_route("/v1/chat/{chat_id}", v1_chat.chat_delete_endpoint, methods=["DELETE"], tags=["public"])
+    app.add_api_route(
+        "/v1/chat", v1_chat.chat_create_endpoint, methods=["POST"], tags=["public"]
+    )
+    app.add_api_route(
+        "/v1/chat", v1_chat.chat_list_endpoint, methods=["GET"], tags=["public"]
+    )
+    app.add_api_route(
+        "/v1/chat/{chat_id}",
+        v1_chat.chat_get_endpoint,
+        methods=["GET"],
+        tags=["public"],
+    )
+    app.add_api_route(
+        "/v1/chat/{chat_id}",
+        v1_chat.chat_delete_endpoint,
+        methods=["DELETE"],
+        tags=["public"],
+    )
 
     # Search endpoint
-    app.add_api_route("/v1/search", v1_search.search_endpoint, methods=["POST"], tags=["public"])
+    app.add_api_route(
+        "/v1/search", v1_search.search_endpoint, methods=["POST"], tags=["public"]
+    )
 
     # Documents endpoints
-    app.add_api_route("/v1/documents/ingest", v1_documents.ingest_endpoint, methods=["POST"], tags=["public"])
-    app.add_api_route("/v1/tasks/{task_id}", v1_documents.task_status_endpoint, methods=["GET"], tags=["public"])
-    app.add_api_route("/v1/documents", v1_documents.delete_document_endpoint, methods=["DELETE"], tags=["public"])
+    app.add_api_route(
+        "/v1/documents/ingest",
+        v1_documents.ingest_endpoint,
+        methods=["POST"],
+        tags=["public"],
+    )
+    app.add_api_route(
+        "/v1/tasks/{task_id}",
+        v1_documents.task_status_endpoint,
+        methods=["GET"],
+        tags=["public"],
+    )
+    app.add_api_route(
+        "/v1/documents",
+        v1_documents.delete_document_endpoint,
+        methods=["DELETE"],
+        tags=["public"],
+    )
 
     # Settings endpoints
-    app.add_api_route("/v1/settings", v1_settings.get_settings_endpoint, methods=["GET"], tags=["public"])
-    app.add_api_route("/v1/settings", v1_settings.update_settings_endpoint, methods=["POST"], tags=["public"])
+    app.add_api_route(
+        "/v1/settings",
+        v1_settings.get_settings_endpoint,
+        methods=["GET"],
+        tags=["public"],
+    )
+    app.add_api_route(
+        "/v1/settings",
+        v1_settings.update_settings_endpoint,
+        methods=["POST"],
+        tags=["public"],
+    )
 
     # Models endpoint
-    app.add_api_route("/v1/models/{provider}", v1_models.list_models_endpoint, methods=["GET"], tags=["public"])
+    app.add_api_route(
+        "/v1/models/{provider}",
+        v1_models.list_models_endpoint,
+        methods=["GET"],
+        tags=["public"],
+    )
 
     # Knowledge filters endpoints
-    app.add_api_route("/v1/knowledge-filters", v1_knowledge_filters.create_endpoint, methods=["POST"], tags=["public"])
-    app.add_api_route("/v1/knowledge-filters/search", v1_knowledge_filters.search_endpoint, methods=["POST"], tags=["public"])
-    app.add_api_route("/v1/knowledge-filters/{filter_id}", v1_knowledge_filters.get_endpoint, methods=["GET"], tags=["public"])
-    app.add_api_route("/v1/knowledge-filters/{filter_id}", v1_knowledge_filters.update_endpoint, methods=["PUT"], tags=["public"])
-    app.add_api_route("/v1/knowledge-filters/{filter_id}", v1_knowledge_filters.delete_endpoint, methods=["DELETE"], tags=["public"])
+    app.add_api_route(
+        "/v1/knowledge-filters",
+        v1_knowledge_filters.create_endpoint,
+        methods=["POST"],
+        tags=["public"],
+    )
+    app.add_api_route(
+        "/v1/knowledge-filters/search",
+        v1_knowledge_filters.search_endpoint,
+        methods=["POST"],
+        tags=["public"],
+    )
+    app.add_api_route(
+        "/v1/knowledge-filters/{filter_id}",
+        v1_knowledge_filters.get_endpoint,
+        methods=["GET"],
+        tags=["public"],
+    )
+    app.add_api_route(
+        "/v1/knowledge-filters/{filter_id}",
+        v1_knowledge_filters.update_endpoint,
+        methods=["PUT"],
+        tags=["public"],
+    )
+    app.add_api_route(
+        "/v1/knowledge-filters/{filter_id}",
+        v1_knowledge_filters.delete_endpoint,
+        methods=["DELETE"],
+        tags=["public"],
+    )
 
     # Add startup event handler
     @app.on_event("startup")
     async def startup_event():
-        await TelemetryClient.send_event(Category.APPLICATION_STARTUP, MessageId.ORB_APP_STARTED)
+        await TelemetryClient.send_event(
+            Category.APPLICATION_STARTUP, MessageId.ORB_APP_STARTED
+        )
         # Start index initialization in background to avoid blocking OIDC endpoints
         t1 = asyncio.create_task(startup_tasks(services))
         app.state.background_tasks.add(t1)
@@ -1253,13 +1638,17 @@ async def create_app():
                     # Check if onboarding has been completed
                     config = get_openrag_config()
                     if not config.edited:
-                        logger.debug("Onboarding not completed yet, skipping periodic backup")
+                        logger.debug(
+                            "Onboarding not completed yet, skipping periodic backup"
+                        )
                         continue
 
                     flows_service = services.get("flows_service")
                     if flows_service:
                         logger.info("Running periodic flow backup")
-                        backup_results = await flows_service.backup_all_flows(only_if_changed=True)
+                        backup_results = await flows_service.backup_all_flows(
+                            only_if_changed=True
+                        )
                         if backup_results["backed_up"]:
                             logger.info(
                                 "Periodic backup completed",
@@ -1285,7 +1674,9 @@ async def create_app():
     # Add shutdown event handler
     @app.on_event("shutdown")
     async def shutdown_event():
-        await TelemetryClient.send_event(Category.APPLICATION_SHUTDOWN, MessageId.ORB_APP_SHUTDOWN)
+        await TelemetryClient.send_event(
+            Category.APPLICATION_SHUTDOWN, MessageId.ORB_APP_SHUTDOWN
+        )
         await cleanup_subscriptions_proper(services)
         # Cleanup task service (cancels background tasks and process pool)
         await services["task_service"].shutdown()
@@ -1293,6 +1684,7 @@ async def create_app():
         await clients.cleanup()
         # Cleanup telemetry client
         from utils.telemetry.client import cleanup_telemetry_client
+
         await cleanup_telemetry_client()
 
     return app

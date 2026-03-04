@@ -17,7 +17,9 @@ const refreshOpenragDocs = async (): Promise<RefreshOpenRAGDocsResponse> => {
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.detail || error.error || "Failed to refresh OpenRAG docs");
+    throw new Error(
+      error.detail || error.error || "Failed to refresh OpenRAG docs",
+    );
   }
 
   return response.json();
