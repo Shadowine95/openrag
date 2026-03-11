@@ -410,6 +410,10 @@ async def ingest_openrag_docs_when_ready(
                     crawl_depth=DEFAULT_DOCS_CRAWL_DEPTH,
                 )
             else:
+                logger.info(
+                    "Ingesting default documents using Langflow",
+                    docs_url=DEFAULT_DOCS_URL,
+                )
                 await _ingest_default_documents_url_langflow(
                     langflow_file_service=langflow_file_service,
                     session_manager=session_manager,
