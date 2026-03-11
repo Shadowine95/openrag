@@ -85,7 +85,7 @@ export default function ConnectorCard({
                   variant="default"
                   onClick={() => onNavigateToKnowledge(connector)}
                   disabled={isDisconnecting || isConnecting}
-                  className="cursor-pointer !text-sm truncate rounded-md"
+                  className="cursor-pointer !text-sm truncate rounded-md flex-1"
                   size="md"
                 >
                   <Plus className="h-4 w-4" />
