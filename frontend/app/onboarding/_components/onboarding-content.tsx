@@ -22,7 +22,7 @@ const OPENRAG_DOCS_FILTERS: SelectedFilters = {
   data_sources: [],
   document_types: [],
   owners: [],
-  connector_types: ["system_default"],
+  connector_types: ["openrag_docs"],
 };
 
 export function OnboardingContent({

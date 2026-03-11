@@ -164,10 +164,10 @@ function SearchPage() {
     taskFilesAsFiles.map((file) => [file.filename, file]),
   );
   // Override backend files with task file status if they exist.
-  // Keep system_default rows sourced from indexed search results so
+  // Keep openrag_docs rows sourced from indexed search results so
   // OpenRAG docs do not appear as pending in the table.
   const backendFiles = (searchData as File[]).map((file) => {
-    if (file.connector_type === "system_default") {
+    if (file.connector_type === "openrag_docs") {
       return file;
     }
     const taskFile = taskFileMap.get(file.filename);
@@ -187,9 +187,9 @@ function SearchPage() {
     ) {
       return false;
     }
-    // Do not render task-only system_default placeholder rows in the table.
+    // Do not render task-only openrag_docs placeholder rows in the table.
     // OpenRAG default docs should be represented only by indexed search results.
-    if (taskFile.connector_type === "system_default") {
+    if (taskFile.connector_type === "openrag_docs") {
       return false;
     }
     return (
@@ -379,7 +379,7 @@ function SearchPage() {
       cellRenderer: ({ data }: CustomCellRendererProps<File>) => {
         const status = data?.status || "active";
         const connectorType = data?.connector_type;
-        if (status !== "active" || connectorType === "system_default") {
+        if (status !== "active" || connectorType === "openrag_docs") {
           return null;
         }
         return (
